@@ -140,14 +140,11 @@ void simulate_assets(option_data *option, int points, int paths){
 
 	int i,j;
 	for(i=0; i<points-1; i++){
+		float sum = 0;
 		for(j=0; j<paths; j++){
-			binc[i*paths+j] = cadd + option->volatility*binc[i*paths+j];
-		}
-	}
-	cumsum(binc, points-1, paths);
-	for(i=0; i<points-1; i++){
-		for(j=0; j<paths; j++){
-			binc[i*paths+j] = option->initial_price * exp(binc[i*paths+j]);
+			float temp = cadd + option->volatility*binc[i*paths+j];
+			sum += temp;
+			binc[i*paths+j] = option->initial_price * exp(sum);
 		}
 	}
 			
