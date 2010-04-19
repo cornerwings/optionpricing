@@ -1,0 +1,11 @@
+README
+
+Option using Monte Carlo pricing on GPU/CPU
+
+--> European Options
+--> American Options
+
+Status:
+
+Implementing Longstaff-Schwartz algorithm on CPU 
+(reference MATLAB code is available, original author: Markus Leippold)
