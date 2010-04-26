@@ -9,7 +9,10 @@ LIBS=-lm
 LAPACKLIBS=-llapack_atlas -llapack -lblas -latlas
 CULALIBS=-lcula -lcublas -lcudart
 
-all: culatest lapacktest amopt
+all: subdirs lapacktest amopt
+
+subdirs: 
+	$(MAKE) --directory=cuda
 
 amopt:
 	${CC} -o amopt amopt.cc $(CFLAGS) $(LIBS)
@@ -22,4 +25,5 @@ lapacktest:
 
 clean:
 	rm -f culatest amopt blastest lapacktest
+	-$(MAKE) clean --directory=cuda
 
