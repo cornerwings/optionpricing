@@ -9,11 +9,13 @@ LIBS=-lm
 LAPACKLIBS=-llapack_atlas -llapack -lblas -latlas
 CULALIBS=-lcula -lcublas -lcudart
 
-all: montecarlo
+.phony: all
 
-montecarlo:
-	${NVCC} -o montecarlo montecarlo.cc $(CFLAGS) $(INCLUDES) $(LIBPATH32) $(CULALIBS) $(LIBS)
+all: montecarlo_gpu
+
+montecarlo_gpu:
+	${NVCC} -o montecarlo_gpu montecarlo.cu $(CFLAGS) $(INCLUDES) $(LIBPATH32) $(CULALIBS) $(LIBS)
 
 clean:
-	rm -f montecarlo
+	rm -f montecarlo montecarlo_gpu
 

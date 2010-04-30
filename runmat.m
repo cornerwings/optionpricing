@@ -1,11 +1,11 @@
-function price=runmat()
+function [dW, S, P, yco, yex]=runmat()
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	%  Longstaff Schwartz for American Put Option
 	%  by markus leippold @2005
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	% basic inputs
 	% clear all
-	% randn('seed',128)               % you may want to use different seeds...
+	randn('seed',128)               % you may want to use different seeds...
 	close all
 	n       = 1000;                     % numbers of paths to simulate
 	N       = 16;                        % number of exercise points
@@ -21,11 +21,13 @@ function price=runmat()
 	% simulate asset processes
 	S = S0*exp(cumsum((r - 1/2*sig^2)*dt + sig*dW));
 	S = [ones(1,n)*S0; S ]';
+
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	P = zeros(n,N);                     % initialize payoff matrix
 	P(:,N) = max(0,S(:,N)-K);           % American put option
 	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	for nn = N-1:-1:2
+	    %nn = N-1;
 	    y = max(0,-K+S(:,nn));          % payoff of put option
 	    yex = [];
 	    X   = [];
@@ -40,8 +42,9 @@ function price=runmat()
 	    % basis functions 1, X, X^2
 	    A = [ones(size(yex)) X  X.*X   ] ;
 	    % Least-Square Regression:
-	    [U,W,V] = svd(A);
+	    [U,W,V] = svd(single(A));
 	    b = V*(W\(U'*Y));
+		b
 	    % continuation value
 	    yco = A*b;
 	    % stopping rule

@@ -1,4 +1,5 @@
-CC=g++
+CC=gcc
+CCP=g++
 NVCC=nvcc
 CFLAGS=-O0
 INCLUDES=-I${CULA_INC_PATH} -I${CUDA_INC_PATH}
@@ -9,21 +10,18 @@ LIBS=-lm
 LAPACKLIBS=-llapack_atlas -llapack -lblas -latlas
 CULALIBS=-lcula -lcublas -lcudart
 
-all: subdirs lapacktest amopt
+all: subdirs lapacktest montecarlo
 
 subdirs: 
 	$(MAKE) --directory=cuda
 
-amopt:
-	${CC} -o amopt amopt.cc $(CFLAGS) $(LIBS)
-
-culatest:
-	${NVCC} -o culatest culatest.cc $(CFLAGS) $(INCLUDES) $(LIBPATH32) $(CULALIBS) $(LIBS)
+montecarlo:
+	${CC} -o montecarlo montecarlo.cc $(CFLAGS) $(INCLUDES) $(LIBPATH32) $(CULALIBS) $(LIBS)
 
 lapacktest:
-	${CC} -o lapacktest lapacktest.cc $(CFLAGS) $(LAPACKLIBS) $(LIBS)
+	${CCP} -o lapacktest lapacktest.cc $(CFLAGS) $(LAPACKLIBS) $(LIBS)
 
 clean:
-	rm -f culatest amopt blastest lapacktest
+	rm -f montecarlo lapacktest
 	-$(MAKE) clean --directory=cuda
 
