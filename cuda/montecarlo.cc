@@ -69,9 +69,9 @@ matrixMul(float* C, const float* A, const float* B, unsigned int hA, unsigned in
             for (unsigned int k = 0; k < wA; ++k) {
                 double a = A[i + k * hA];
                 double b = B[k + j * hB];
-                sum += a * b;
+                sum += (a * b);
             }
-            C[i + j * hB] = (float)sum;
+            C[i + j * hA] = (float)sum;
         }
 }
 
@@ -114,6 +114,23 @@ void randn(float *data, int m, int n){
 	free(udata);
 }
 
+void read_mat(float *A, int M, int N){
+    FILE *fp;
+    fp = fopen("dW.mat", "r");
+
+    int i,j;
+    for(i=0; i<M; i++){
+        for(j=0; j<N; j++){
+            float f;
+            fscanf(fp, "%f", &f);
+            A[i+j*M] = f;
+        }
+    } 
+
+    fclose(fp);
+}
+    
+
 void print_mat(float *A, int M, int N){
     int i,j;
     for(i=0; i<M; i++){
@@ -121,6 +138,21 @@ void print_mat(float *A, int M, int N){
             printf("%f ", A[i+j*M]);
         printf("\n");
     } 
+}
+
+void write_mat(char *name, float *A, int M, int N){
+    FILE *fp;
+    fp = fopen(name, "w");
+
+    int i,j;
+    for(i=0; i<M; i++){
+        for(j=0; j<N; j++){
+            fprintf(fp, "%f ", A[i+j*M]);
+        }
+        fprintf(fp, "\n");
+    } 
+
+    fclose(fp);
 }
 
 void trans_mat(float *A, int M, int N){
@@ -182,6 +214,37 @@ int main(){
     float sqrtofdt = sqrt(dt);
 	float rminus = ( R - 0.5*pow(sig,2) )	* dt;
 
+/*
+
+    printf("rminus - %f, sqrtofdt - %f\n", rminus, sqrtofdt);
+
+    float *dW = (float*) malloc( (N-1)*n*sizeof(float));
+    for(i=0; i<n; i++){
+        for(j=0; j<N-1; j++){
+            //dW[j+i*(N-1)] =  sqrtofdt * MoroInvCND( (float) rand() / RAND_MAX );
+        }
+    }
+
+    print_mat(dW, N-1, n); 
+
+
+    float *cums = (float*) malloc( (N-1)*n*sizeof(float));
+
+    for(i=0; i<n; i++){
+        float cumsum = 0;
+        for(j=0; j<N-1; j++){
+            cumsum += rminus + sig*sqrtofdt * MoroInvCND( (float) rand() / RAND_MAX );
+            cums[j+i*(N-1)] = S0*exp(cumsum);
+        }
+    }
+
+    print_mat(cums, N-1, n);
+*/
+
+    //float *dW = (float*) malloc( (N-1)*n*sizeof(float));
+    //read_mat(dW, N-1, n);
+    //print_mat(dW, N-1, n);
+
     float *Sasset = (float*) malloc( (N-1)*n*sizeof(float));
 
     //Packed calculation of S = S0*exp(cumsum((r - 1/2*sig^2)*dt + sig*dW));
@@ -192,14 +255,14 @@ int main(){
     for(i=0; i<n; i++){
         float cumsum = 0;
         for(j=0; j<N-1; j++){
+            //cumsum += (rminus + sig * dW[j+i*(N-1)]);
             cumsum += (rminus + sig * sqrtofdt * MoroInvCND( (float) rand() / RAND_MAX ));
             //cumsum += (rminus + sig * sqrtofdt * randdata[j+i*(N-1)]);
-            float expsum = S0*exp(cumsum);
-            Sasset[j+i*(N-1)] = expsum;
+            Sasset[j+i*(N-1)] = S0*exp(cumsum);
         }
     }
 
-    //print_mat(Sasset,N-1,n);
+    //write_mat("Sasset.mat", Sasset,N-1,n);
 
     //Adding intial prices column to S
     trans_mat(Sasset, N-1, n);
@@ -212,7 +275,7 @@ int main(){
 
     free(Sasset);
     
-    //print_mat(S,n,N);
+    //write_mat("S.mat", S,n,N);
 
     float disc = exp(-R*dt);
 
@@ -261,6 +324,8 @@ int main(){
             }
         }
 
+        //printf("NZcount: %d\n", nzcount);
+
         //print_mat(yex,n,1);
 
         yex = (float*) realloc(yex, nzcount*sizeof(float));
@@ -271,7 +336,8 @@ int main(){
 
         //printf("%d\n", nzcount);
 
-        //print_mat(Y,nzcount,1);
+        //print_mat(X,nzcount,1);
+        //write_mat("Y.mat", Y,nzcount,1);
 
         float *A = (float*) malloc (nzcount*3*sizeof(float));
         for(i=0; i<nzcount*3; i++){
@@ -279,6 +345,12 @@ int main(){
             A[i] = pow(X[i-exp*nzcount], exp);
             //printf("%d - %f - %f\n", i, A[i], X[i-exp*nzcount]);
         }
+
+        //char filename[10];
+
+        //print_mat(A, nzcount, 3);
+        //sprintf(filename, "A%d.mat", nn);
+        //write_mat(filename, A, nzcount, 3);
 
         float *Acopy = (float*) malloc (nzcount*3*sizeof(float));
         memcpy(Acopy, A, nzcount*3*sizeof(float));
@@ -288,8 +360,36 @@ int main(){
         float* VT = (float*) malloc( 3 * 3 * sizeof(float)); 
 
         //Take SVD
-        s = culaSgesvd('A', 'A', nzcount, 3, A, nzcount, S, U, nzcount, VT, 3);
-	    checkStatus(s);              
+        //trans_mat(A, nzcount, 3);
+        s = culaSgesvd('A', 'A', nzcount, 3, A, nzcount, W, U, nzcount, VT, 3);
+	    checkStatus(s);     
+
+        //Pack S into a square matrix
+        float *NUM = (float*) malloc(nzcount*3*sizeof(float));
+        memset(NUM,0,nzcount*3*sizeof(float));
+        
+        for(i=0; i<imin(nzcount,3); i++)
+            NUM[i*nzcount+i] = W[i];
+    
+        //print_mat(NUM, nzcount, 3); 
+        //print_mat(U, nzcount, nzcount);
+
+        float *tempRes1 = (float*) malloc (nzcount*3*sizeof(float));
+        float *tempRes2 = (float*) malloc (nzcount*3*sizeof(float));
+
+        matrixMul(tempRes1, NUM, VT, nzcount, 3, 3);
+        matrixMul(tempRes2, U, tempRes1, nzcount, nzcount, 3);
+
+        //write_mat("S.mat", NUM, nzcount, 3);
+        //write_mat("U.mat", U, nzcount, nzcount);
+        //write_mat("VT.mat", VT, 3, 3);
+        //write_mat("Ares.mat", tempRes2, nzcount, 3);
+
+        //write_mat("U.mat", U, nzcount, nzcount);
+        //trans_mat(U,nzcount,nzcount);
+        //write_mat("UT.mat", U, nzcount, nzcount);
+        //trans_mat(U,nzcount,nzcount);
+        //write_mat("UTT.mat",U, nzcount,nzcount);
 
         //Take transpose of U
         trans_mat(U, nzcount, nzcount);
@@ -299,17 +399,7 @@ int main(){
         matrixMul(DEN, U, Y, nzcount, nzcount, 1);
 
         //print_mat(DEN,nzcount,1);
-
-
-        //Pack S into a square matrix
-        float *NUM = (float*) malloc(nzcount*3*sizeof(float));
-        memset(NUM,0,nzcount*3*sizeof(float));
-        
-        for(i=0; i<imin(nzcount,3); i++)
-            NUM[i*nzcount+i] = S[i];
-    
-        //print_mat(NUM, nzcount, 3);
-        //print_mat(DEN, nzcount, 1);
+        //write_mat("DEN.mat", DEN, nzcount, 1);
 
         //Do Least Squares
         s = culaSgels('N', nzcount, 3, 1, NUM, nzcount, DEN, nzcount);
@@ -321,25 +411,32 @@ int main(){
         DEN = (float*) realloc(DEN, 3*sizeof(float)); 
 
         //print_mat(DEN, 3, 1);
+        //write_mat("LS.mat", DEN, 3, 1);
         
         float *b = (float*) malloc(3* sizeof(float));
         trans_mat(VT, 3, 3);
+        //write_mat("V.mat", VT, 3, 3);
         
         //trans_mat(DEN,3,1);
         matrixMul(b, VT, DEN, 3, 3, 1);
 
         //print_mat(b, 3, 1);
+        //sprintf(filename, "B%d.mat", nn);
+        //write_mat(filename, b, 3, 1);
 
         //trans_mat(Acopy, nzcount, 3);
         float *yco = (float*) malloc(nzcount*sizeof(float));
         matrixMul(yco, Acopy, b, nzcount, 3, 1);
 
-        //print_mat(yco, nzcount, 1);
+        //write_mat("yco.mat", yco, nzcount, 1);
+	//write_mat("yex.mat", yex, nzcount, 1);
 
+	//write_mat("Pbef.mat", P, n, N);
+	
         j=0;
         for(i=0; i<n; i++){
             if(y[i]>0){
-                if(yex[i] > yco[j]){
+                if(yex[j] > yco[j]){
                     int it;
                     for(it=0; it<N; it++)
                         P[it*n + i] = 0;
@@ -349,7 +446,7 @@ int main(){
             }
         }
 
-        //print_mat(P,n,N);
+        //write_mat("P.mat", P,n,N);
 
         free(y);
         free(yex);
@@ -361,6 +458,8 @@ int main(){
         free(VT);
         free(b);
         free(yco);
+
+        //break;
 
     } 
     
