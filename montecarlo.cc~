@@ -277,8 +277,8 @@ int main(){
 
     int i,j,k;
 
-    int n = 10000;
-    int N = 100;
+    int n = 1000;
+    int N = 16;
 
 	//Option data
 	float S0 = 100;

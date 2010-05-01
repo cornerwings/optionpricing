@@ -16,5 +16,5 @@ montecarlo:
 	${NVCC} -o montecarlo montecarlo.cu $(CFLAGS) $(INCLUDES) $(LIBPATH32) $(CULALIBS) $(LIBS)
 
 clean:
-	rm -f montecarlo
-
+	rm -f montecarlo lapacktest
+	-$(MAKE) clean --directory=cuda
