@@ -1,7 +1,7 @@
 CC=gcc
 CCP=g++
 NVCC=nvcc
-CFLAGS=-O0
+CFLAGS=-O0 -g
 INCLUDES=-I${CULA_INC_PATH} -I${CUDA_INC_PATH}
 LIBPATH32=-L${CULA_LIB_PATH_32}
 LIBPATH64=-L${CULA_LIB_PATH_64}
@@ -16,7 +16,7 @@ subdirs:
 	$(MAKE) --directory=cuda
 
 montecarlo:
-	${CC} -o montecarlo montecarlo.cc $(CFLAGS) $(INCLUDES) $(LIBPATH32) $(CULALIBS) $(LIBS)
+	${CCP} -o montecarlo montecarlo.cc $(CFLAGS) $(LAPACKLIBS) $(LIBS)
 
 lapacktest:
 	${CCP} -o lapacktest lapacktest.cc $(CFLAGS) $(LAPACKLIBS) $(LIBS)

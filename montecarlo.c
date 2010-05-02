@@ -5,14 +5,14 @@
 #include <time.h>
 #include <assert.h>
 
+#include <culapack.h>
+
 #define imin(X, Y)  ((X) < (Y) ? (X) : (Y))
 #define MAX(X, Y) ((X) > (Y) ? (X): (Y))
 
-extern "C" void sgesvd_( char* jobu, char* jobvt, int* m, int* n, float* a,
+extern "C" void sgesvd( char* jobu, char* jobvt, int* m, int* n, float* a,
                 int* lda, float* s, float* u, int* ldu, float* vt, int* ldvt,
                 float* work, int* lwork, int* info );
-extern "C" void sgels_( char* trans, int* m, int* n, int* nrhs, float* a, int* lda,
-                float* b, int* ldb, float* work, int* lwork, int* info );
 
 float MoroInvCND(float P){
     const float a1 = 2.50662823884;
@@ -35,7 +35,7 @@ float MoroInvCND(float P){
     float y, z;
 
     if(P <= 0 || P >= 1.0){
-        printf("MoroInvCND(): bad parameter %f\n", P);
+        printf("MoroInvCND(): bad parameter\n");
     }
 
     y = P - 0.5;
@@ -160,8 +160,6 @@ void trans_mat(float *A, int M, int N){
     for(i=0; i<M; i++)
         for(j=0; j<N; j++)
             A[i*N+j] = temp[j*M+i];
-
-   free(temp);
 }
 
 
@@ -250,8 +248,40 @@ void cumsum(float *data, int m, int n){
 
 }
 
-float MonteCarloCPU(float S0, float K, float T, float sig, float R)
+void checkStatus(culaStatus status)
 {
+    if(!status)
+        return;
+
+    if(status == culaArgumentError)
+        printf("Invalid value for parameter %d\n", culaGetErrorInfo());
+    else if(status == culaDataError)
+        printf("Data error (%d)\n", culaGetErrorInfo());
+    else if(status == culaBlasError)
+        printf("Blas error (%d)\n", culaGetErrorInfo());
+    else if(status == culaRuntimeError)
+        printf("Runtime error (%d)\n", culaGetErrorInfo());
+    else
+        printf("%s\n", culaGetStatusString(status));
+
+    culaShutdown();
+    exit(EXIT_FAILURE);
+}
+
+
+
+
+int main(){
+	
+    culaStatus s;
+	s = culaInitialize();
+	if(s != culaNoError)
+	{
+		printf("%s\n", culaGetStatusString(s));
+	}
+
+    //srand(time(0));
+
         float wkopt;
         float* work;
 
@@ -259,26 +289,57 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
 
     int i,j,k;
 
-    unsigned int n = 10000;
-    unsigned int N = 16;
+    int n = 10000;
+    int N = 100;
 
+	//Option data
+	float S0 = 100;
+	float K = 100;
+	float T = 1;
+	float sig = 0.2;
+	float R = 0.05;
 
     float dt = T/N;
     float sqrtofdt = sqrt(dt);
 	float rminus = ( R - 0.5*pow(sig,2) )	* dt;
 
 
+
+    //printf("rminus - %f, sqrtofdt - %f\n", rminus, sqrtofdt);
+
     float *dW = (float*) malloc( (N-1)*n*sizeof(float));
     for(i=0; i<n; i++){
         for(j=0; j<N-1; j++){
-            float randnum =  (float) rand() / RAND_MAX ;
-	    if(randnum >= 1.0f || randnum <= 0.0f)
-		randnum = 0.5f;
-	    dW[j+i*(N-1)] = randnum;
+            dW[j+i*(N-1)] =  (float) rand() / RAND_MAX ;
         }
     }
 
+    //write_mat("dW.mat", dW, N-1, n); 
+/*
+
+    float *cums = (float*) malloc( (N-1)*n*sizeof(float));
+
+    for(i=0; i<n; i++){
+        float cumsum = 0;
+        for(j=0; j<N-1; j++){
+            cumsum += rminus + sig*sqrtofdt * MoroInvCND( (float) rand() / RAND_MAX );
+            cums[j+i*(N-1)] = S0*exp(cumsum);
+        }
+    }
+
+    print_mat(cums, N-1, n);
+*/
+
+    //float *dW = (float*) malloc( (N-1)*n*sizeof(float));
+    //read_mat(dW, N-1, n);
+    //print_mat(dW, N-1, n);
+
     float *Sasset = (float*) malloc( (N-1)*n*sizeof(float));
+
+    //Packed calculation of S = S0*exp(cumsum((r - 1/2*sig^2)*dt + sig*dW));
+
+    //float *randdata = (float *) malloc( (N-1)*n*sizeof(float));
+    //randn(randdata, N-1, n);
 
     for(i=0; i<n; i++){
         float cumsum = 0;
@@ -289,7 +350,7 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
         }
     }
 
-	    free(dW);	
+    //write_mat("Sasset.mat", Sasset,N-1,n);
 
     //Adding intial prices column to S
     trans_mat(Sasset, N-1, n);
@@ -300,8 +361,10 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
         S[i] = S0;
     memcpy(S+n, Sasset, (N-1)*n*sizeof(float));
 
-
+	free(dW);
     free(Sasset);
+    
+    //write_mat("S.mat", S,n,N);
 
     float disc = exp(-R*dt);
 
@@ -312,6 +375,7 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
     for(i=0; i<n; i++)
         P[(N-1)*n + i] = MAX(0, S[(N-1)*n + i]-K);
 
+    //print_mat(P,n,N);
 
     int nn;
     for(nn=N-2; nn>0; nn--){
@@ -320,6 +384,8 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
 
         for(i=0; i<n; i++)
             y[i] = MAX(0, S[nn*n +i]-K);
+
+        //print_mat(y,n,1);
 
         //fill yex,X,Y with only nonzeros from y
         float *yex = (float*) malloc(n*sizeof(float));
@@ -341,19 +407,42 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
 
                 Y[nzcount] = ndisc;
 
+                //printf("ndisc: %f\n", ndisc);
+
                 nzcount++;
             }
         }
+
+        //printf("NZcount: %d\n", nzcount);
+
+        //print_mat(yex,n,1);
+
+        //yex = (float*) realloc(yex, nzcount*sizeof(float));
+        //X = (float*) realloc(X, nzcount*sizeof(float));
+        //Y = (float*) realloc(Y, nzcount*sizeof(float));
+
+        //print_mat(yex,nzcount,1);
+
+        //printf("%d\n", nzcount);
+
+        //print_mat(X,nzcount,1);
+        //write_mat("Y.mat", Y,nzcount,1);
 
         float *A = (float*) malloc (nzcount*3*sizeof(float));
         for(i=0; i<nzcount*3; i++){
             int exp = i/nzcount;
             A[i] = pow(X[i-exp*nzcount], exp);
+            //printf("%d - %f - %f\n", i, A[i], X[i-exp*nzcount]);
         }
+
+        //char filename[10];
+
+        //print_mat(A, nzcount, 3);
+        //sprintf(filename, "A%d.mat", nn);
+        //write_mat(filename, A, nzcount, 3);
 
         float *Acopy = (float*) malloc (nzcount*3*sizeof(float));
         memcpy(Acopy, A, nzcount*3*sizeof(float));
-
 
         float* W = (float*) malloc( imin(nzcount,3) * sizeof(float));
         float* U = (float*) malloc( nzcount * nzcount * sizeof(float));
@@ -363,12 +452,16 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
 	int na = 3;
 
         lwork = -1;
-        sgesvd_( "All", "All", &ma, &na, A, &ma, W, U, &ma, VT, &na, &wkopt, &lwork, &info );
+        sgesvd( "All", "All", &ma, &na, A, &ma, W, U, &ma, VT, &na, &wkopt, &lwork, &info );
         lwork = (int)wkopt;
         work = (float*)malloc( lwork*sizeof(float) );
         /* Compute SVD */
-        sgesvd_( "All", "All", &ma, &na, A, &ma, W, U, &ma, VT, &na, work, &lwork, &info );
-	free(work);
+        sgesvd( "All", "All", &ma, &na, A, &ma, W, U, &ma, VT, &na, work, &lwork, &info );
+
+        //Take SVD
+        //trans_mat(A, nzcount, 3);
+        //s = culaSgesvd('A', 'A', nzcount, 3, A, nzcount, W, U, nzcount, VT, 3);
+	//    checkStatus(s);     
 
         //Pack S into a square matrix
         float *NUM = (float*) malloc(nzcount*3*sizeof(float));
@@ -376,32 +469,68 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
         
         for(i=0; i<imin(nzcount,3); i++)
             NUM[i*nzcount+i] = W[i];
+    
+        //print_mat(NUM, nzcount, 3); 
+        //print_mat(U, nzcount, nzcount);
+
+        //float *tempRes1 = (float*) malloc (nzcount*3*sizeof(float));
+        //float *tempRes2 = (float*) malloc (nzcount*3*sizeof(float));
+
+        //matrixMul(tempRes1, NUM, VT, nzcount, 3, 3);
+        //matrixMul(tempRes2, U, tempRes1, nzcount, nzcount, 3);
+
+        //write_mat("S.mat", NUM, nzcount, 3);
+        //write_mat("U.mat", U, nzcount, nzcount);
+        //write_mat("VT.mat", VT, 3, 3);
+        //write_mat("Ares.mat", tempRes2, nzcount, 3);
+
+        //write_mat("U.mat", U, nzcount, nzcount);
+        //trans_mat(U,nzcount,nzcount);
+        //write_mat("UT.mat", U, nzcount, nzcount);
+        //trans_mat(U,nzcount,nzcount);
+        //write_mat("UTT.mat",U, nzcount,nzcount);
 
         //Take transpose of U
         trans_mat(U, nzcount, nzcount);
+        //trans_mat(Y, nzcount, 1);
 
         float *DEN = (float*) malloc(nzcount*sizeof(float));
         matrixMul(DEN, U, Y, nzcount, nzcount, 1);
 
-	int ms = nzcount;
-	int ns = 3;
-	int nrhs = 1;
+        //print_mat(DEN,nzcount,1);
+        //write_mat("DEN.mat", DEN, nzcount, 1);
 
-        lwork = -1;
-        sgels_( "No transpose", &ms, &ns, &nrhs, NUM, &ms, DEN, &ms, &wkopt, &lwork, &info );
-        lwork = (int)wkopt;
-        work = (float*)malloc( lwork*sizeof(float) );
-        /* Solve the equations A*X = B */
-        sgels_( "No transpose", &ms, &ns, &nrhs, NUM, &ms, DEN, &ms, work, &lwork, &info );	
-	free(work);        
+        //Do Least Squares
+        s = culaSgels('N', nzcount, 3, 1, NUM, nzcount, DEN, nzcount);
+	    checkStatus(s);
 
+        //print_mat(NUM, nzcount, 3);
+        //print_mat(DEN, nzcount, 1);
+
+        //DEN = (float*) realloc(DEN, 3*sizeof(float)); 
+
+        //print_mat(DEN, 3, 1);
+        //write_mat("LS.mat", DEN, 3, 1);
+        
         float *b = (float*) malloc(3* sizeof(float));
         trans_mat(VT, 3, 3);
-
+        //write_mat("V.mat", VT, 3, 3);
+        
+        //trans_mat(DEN,3,1);
         matrixMul(b, VT, DEN, 3, 3, 1);
 
+        //print_mat(b, 3, 1);
+        //sprintf(filename, "B%d.mat", nn);
+        //write_mat(filename, b, 3, 1);
+
+        //trans_mat(Acopy, nzcount, 3);
         float *yco = (float*) malloc(nzcount*sizeof(float));
         matrixMul(yco, Acopy, b, nzcount, 3, 1);
+
+        //write_mat("yco.mat", yco, nzcount, 1);
+	//write_mat("yex.mat", yex, nzcount, 1);
+
+	//write_mat("Pbef.mat", P, n, N);
 	
         j=0;
         for(i=0; i<n; i++){
@@ -416,6 +545,8 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
             }
         }
 
+        //write_mat("P.mat", P,n,N);
+
         free(y);
         free(yex);
         free(X);
@@ -426,14 +557,12 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
         free(VT);
         free(b);
         free(yco);
-	free(Acopy);
-	free(NUM);
-	free(DEN);
 
-
+        //break;
 
     } 
     
+    //print_mat(P,n,N);
 
     float price = 0.0;
 
@@ -452,24 +581,10 @@ float MonteCarloCPU(float S0, float K, float T, float sig, float R)
 
     price /= n;
 
-    free(acdis);
-    free(accum);
+    printf("Price evaluated: %f\n", price);   
+
     free(S);
     free(P); 
-
-    return price;
-
-}
-
-int main(){
-
-    //srand(time(0));
-	//int i =0;
-    //for(int i=0; i<5; i++){
-    	float price = MonteCarloCPU(100,100,1,0.2,0.05);
-    	//printf("%d - %f\n", i, price);
-    //}
-
 
 /*
 
@@ -594,5 +709,6 @@ int main(){
     print_mat(RES,4,2);   
 */ 
 
+	culaShutdown();
 }
 
